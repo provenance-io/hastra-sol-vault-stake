@@ -1,0 +1,25 @@
+[package]
+name = "hastra-sol-vault-stake"
+version = "0.1.0"
+description = "Vault, Mint, and Stake Contract for Hastra"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "hastra_sol_vault_stake"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+custom-heap = []
+custom-panic = []
+anchor-debug = []
+
+[dependencies]
+anchor-lang = "0.31.1"
+anchor-spl = "0.31.1"
+bincode = "1.3.3"

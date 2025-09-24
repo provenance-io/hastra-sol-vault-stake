@@ -1,0 +1,72 @@
+import * as anchor from "@coral-xyz/anchor";
+import yargs from "yargs";
+import {Program} from "@coral-xyz/anchor";
+import {HastraSolVaultStake} from "../target/types/hastra_sol_vault_stake";
+
+const provider = anchor.AnchorProvider.env();
+anchor.setProvider(provider);
+
+const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultStake>;
+
+const args = yargs(process.argv.slice(2))
+    .option("mint", {
+        type: "string",
+        description: "Mint token that will be burned (e.g. sYLDS) after unbonding period.",
+        required: true,
+    })
+    .option("amount", {
+        type: "number",
+        description: "Amount of mint tokens to burn at unbond",
+        required: true,
+    })
+    .option("user_mint_token_account", {
+        type: "string",
+        description: "User's mint token account where tokens will be burned from. Must be associated token account for the burned mint token (e.g. sYLDS)",
+        required: true,
+    })
+    .parseSync();
+
+const main = async () => {
+    const signer = provider.wallet.publicKey;
+
+    // Derive PDAs
+    const [configPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        program.programId
+    );
+
+// Derive ticket PDA
+    const [ticketPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("ticket"), signer.toBuffer()],
+        program.programId
+    );
+
+    // Program args
+    const mint = new anchor.web3.PublicKey(args.mint);
+    const amount = new anchor.BN(args.amount);
+    const userMintTokenAccount = new anchor.web3.PublicKey(args.user_mint_token_account);
+
+    console.log("Burned Mint (token to be burned e.g. sYLDS)", mint.toBase58());
+    console.log("Amount:", amount.toString());
+    console.log("User Mint Token Account to be burned:", userMintTokenAccount.toBase58());
+    console.log("User Unbonding Ticket:", ticketPda.toBase58());
+    console.log("Config PDA:", configPda.toBase58());
+
+    const tx = await program.methods
+        .unbond(amount)
+        .accountsStrict({
+            config: configPda,
+            mint: mint,
+            signer: signer,
+            userMintTokenAccount: userMintTokenAccount,
+            ticket: ticketPda,
+            systemProgram: anchor.web3.SystemProgram.programId,
+        }).rpc();
+
+    console.log("Transaction:", tx);
+};
+
+main().catch(console.error);
+
+
+
