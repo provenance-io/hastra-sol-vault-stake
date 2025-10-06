@@ -11,7 +11,7 @@ const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultSt
 const args = yargs(process.argv.slice(2))
     .option("mint", {
         type: "string",
-        description: "Mint token that will be burned (e.g. sYLDS) after unbonding period.",
+        description: "Mint token that will be burned (e.g. PRIME) after unbonding period.",
         required: true,
     })
     .option("amount", {
@@ -21,7 +21,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("user_mint_token_account", {
         type: "string",
-        description: "User's mint token account where tokens will be burned from. Must be associated token account for the burned mint token (e.g. sYLDS)",
+        description: "User's mint token account where tokens will be burned from. Must be associated token account for the burned mint token (e.g. PRIME)",
         required: true,
     })
     .parseSync();
@@ -35,7 +35,7 @@ const main = async () => {
         program.programId
     );
 
-// Derive ticket PDA
+    // Derive ticket PDA
     const [ticketPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("ticket"), signer.toBuffer()],
         program.programId
@@ -46,7 +46,7 @@ const main = async () => {
     const amount = new anchor.BN(args.amount);
     const userMintTokenAccount = new anchor.web3.PublicKey(args.user_mint_token_account);
 
-    console.log("Burned Mint (token to be burned e.g. sYLDS)", mint.toBase58());
+    console.log("Burned Mint (token to be burned e.g. PRIME)", mint.toBase58());
     console.log("Amount:", amount.toString());
     console.log("User Mint Token Account to be burned:", userMintTokenAccount.toBase58());
     console.log("User Unbonding Ticket:", ticketPda.toBase58());

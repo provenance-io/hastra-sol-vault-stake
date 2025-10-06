@@ -79,9 +79,17 @@ pub struct Deposit<'info> {
     #[account(
         mut,
         token::mint = config.vault,
-        constraint = vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint
+        constraint = vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
+        constraint = vault_token_account.owner == vault_authority.key() @ CustomErrorCode::InvalidVaultAuthority
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: This is a PDA that acts as vault authority, validated by seeds constraint
+    #[account(
+        seeds = [b"vault_authority"],
+        bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -103,14 +111,16 @@ pub struct Deposit<'info> {
     #[account(
         mut,
         token::mint = config.vault,
-        constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint
+        constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
+        constraint = user_vault_token_account.owner == signer.key()
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         token::mint = config.mint,
-        constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint
+        constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint,
+        constraint = user_mint_token_account.owner == signer.key()
     )]
     pub user_mint_token_account: Account<'info, TokenAccount>,
 
@@ -201,35 +211,6 @@ pub struct Redeem<'info> {
     )]
     pub mint: Account<'info, Mint>,
 
-    pub token_program: Program<'info, Token>,
-}
-
-#[derive(Accounts)]
-pub struct SetMintAuthority<'info> {
-    #[account(seeds = [b"config"], bump)]
-    pub config: Account<'info, Config>,
-
-    #[account(
-        mut,
-        constraint = mint.key() == config.mint @ CustomErrorCode::InvalidMint
-    )]
-    pub mint: Account<'info, Mint>,
-
-    /// CHECK: This is the program data account that contains the update authority
-    #[account(
-        constraint = program_data.key() == get_program_data_address(&crate::id()) @ CustomErrorCode::InvalidProgramData
-    )]
-    pub program_data: UncheckedAccount<'info>,
-
-    /// CHECK: This is the current mint authority PDA that will sign with seeds
-    #[account(
-        seeds = [b"mint_authority"],
-        bump,
-        constraint = mint_authority.key() == mint.mint_authority.unwrap() @ CustomErrorCode::InvalidMintAuthority
-    )]
-    pub mint_authority: UncheckedAccount<'info>,
-
-    pub signer: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
 

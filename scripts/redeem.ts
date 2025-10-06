@@ -11,7 +11,7 @@ const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultSt
 const args = yargs(process.argv.slice(2))
     .option("mint", {
         type: "string",
-        description: "The staking mint token that will be burned (e.g. sYLDS) at redeem.",
+        description: "The staking mint token that will be burned (e.g. PRIME) at redeem.",
         required: true,
     })
 
@@ -27,7 +27,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("user_mint_token_account", {
         type: "string",
-        description: "User's mint token account address where the staking mint tokens (e.g. sYLDS) will be burned. Must be associated token account for the mint token (e.g. sYLDS)",
+        description: "User's mint token account address where the staking mint tokens (e.g. PRIME) will be burned. Must be associated token account for the mint token (e.g. PRIME)",
         required: true,
     })
 
@@ -54,7 +54,7 @@ const main = async () => {
     const userMintTokenAccount = new anchor.web3.PublicKey(args.user_mint_token_account);
 
     console.log(`Signer: ${mint.toBase58()}`);
-    console.log(`Mint (token to be burned e.g. sYLDS): ${mint.toBase58()}`);
+    console.log(`Mint (token to be burned e.g. PRIME): ${mint.toBase58()}`);
     console.log(`Vault Token Account (e.g. wYLDS): ${vaultTokenAccount.toBase58()}`);
     console.log(`User Vault Token Account: ${userVaultTokenAccount.toBase58()}`);
     console.log(`Config PDA: ${configPda.toBase58()}`);

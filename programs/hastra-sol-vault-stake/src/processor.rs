@@ -160,38 +160,6 @@ pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
     Ok(())
 }
 
-pub fn set_mint_authority(ctx: Context<SetMintAuthority>, new_authority: Pubkey) -> Result<()> {
-    // Validate that the signer is the program's update authority
-    validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
-
-    let mint = &ctx.accounts.mint;
-    let token_program = &ctx.accounts.token_program;
-
-    // Create seeds for PDA signing
-    let mint_authority_signer: &[&[&[u8]]] =
-        &[&["mint_authority".as_bytes(), &[ctx.bumps.mint_authority]]];
-
-    let cpi_accounts = token::SetAuthority {
-        account_or_mint: mint.to_account_info(),
-        current_authority: ctx.accounts.mint_authority.to_account_info(),
-    };
-
-    let cpi_ctx = CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        cpi_accounts,
-        mint_authority_signer,
-    );
-
-    token::set_authority(cpi_ctx, AuthorityType::MintTokens, Some(new_authority))?;
-
-    msg!(
-        "Mint authority changed from {} to {}",
-        ctx.accounts.mint_authority.key(),
-        new_authority
-    );
-    Ok(())
-}
-
 // Set the mint token's freeze authority to the program PDA
 // Update the list of freeze administrators (only program update authority can do this)
 pub fn update_freeze_administrators(
@@ -358,7 +326,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32
         CustomErrorCode::InvalidMerkleProof
     );
 
-    // mint staking tokens (sYLDS) to user
+    // mint staking tokens (PRIME) to user
     let seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
     let signer = &[&seeds[..]];
     let cpi_accounts = MintTo {

@@ -295,13 +295,6 @@ show_accounts_and_pdas() {
   echo ""
 }
 
-update_mint_authority() {
-  prompt_with_default MINT_AUTHORITY "Enter new Mint Authority address"
-  yarn run ts-node scripts/update_mint_authority.ts \
-      --mint "$MINT_TOKEN" \
-      --new_authority "$MINT_AUTHORITY"
-}
-
 update_freeze_authority() {
   prompt_with_default FREEZE_AUTHORITY "Enter new Freeze Authority address"
   yarn run ts-node scripts/update_freeze_authority.ts \
@@ -339,7 +332,6 @@ while true; do
     "Show Accounts & PDAs" \
     "Show Current Settings" \
     "Update Unbonding Period" \
-    "Update Mint Authority" \
     "Update Freeze Authority" \
     "Create Mint Token" \
     "Create Vault Token Account" \
@@ -356,12 +348,11 @@ while true; do
       7) show_accounts_and_pdas; break ;;
       8) show_current_settings; break ;;
       9) update_unbonding_period; break ;;
-      10) update_mint_authority; break ;;
-      11) update_freeze_authority; break ;;
-      12) create_mint_token; break ;;
-      13) create_vault_token_account; break ;;
-      14) set_new_program_id; break ;;
-      15) exit 0 ;;
+      10) update_freeze_authority; break ;;
+      11) create_mint_token; break ;;
+      12) create_vault_token_account; break ;;
+      13) set_new_program_id; break ;;
+      14) exit 0 ;;
       *) echo "Invalid option"; break ;;
     esac
   done

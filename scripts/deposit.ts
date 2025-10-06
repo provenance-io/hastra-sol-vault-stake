@@ -11,7 +11,7 @@ const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultSt
 const args = yargs(process.argv.slice(2))
     .option("mint", {
         type: "string",
-        description: "Token that will be minted (e.g. sYLDS) upon receipt of the vault token (e.g. wYLDS)",
+        description: "Token that will be minted (e.g. PRIME) upon receipt of the vault token (e.g. wYLDS)",
         required: true,
     })
     .option("amount", {
@@ -31,7 +31,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("user_mint_token_account", {
         type: "string",
-        description: "User's mint token account address where the minted tokens will be sent to. Must be associated token account for the mint token (e.g. sYLDS)",
+        description: "User's mint token account address where the minted tokens will be sent to. Must be associated token account for the mint token (e.g. PRIME)",
         required: true,
     })
     .parseSync();
@@ -57,7 +57,7 @@ const main = async () => {
     const userVaultTokenAccount = new anchor.web3.PublicKey(args.user_vault_token_account);
     const userMintTokenAccount = new anchor.web3.PublicKey(args.user_mint_token_account);
 
-    console.log("Mint (token to be minted e.g. sYLDS)", mint.toBase58());
+    console.log("Mint (token to be minted e.g. PRIME)", mint.toBase58());
     console.log("Amount:", amount.toString());
     console.log("Vault Token Account (e.g. wYLDS)", vaultTokenAccount.toBase58());
     console.log("User Vault Token Account:", userVaultTokenAccount.toBase58());

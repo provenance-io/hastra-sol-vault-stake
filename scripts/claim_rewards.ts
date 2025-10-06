@@ -25,7 +25,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("mint", {
         type: "string",
-        description: "Token that will be minted (e.g. sYLDS) upon validation of the claim proof",
+        description: "Token that will be minted (e.g. PRIME) upon validation of the claim proof",
         required: true,
     })
     .option("amount", {
