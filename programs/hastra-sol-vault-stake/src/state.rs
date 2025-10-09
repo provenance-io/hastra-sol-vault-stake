@@ -38,3 +38,10 @@ impl RewardsEpoch { pub const LEN: usize = 8 + 8 + 32 + 8 + 8; }
 #[account]
 pub struct ClaimRecord {}      // empty marker account, existence = already claimed
 impl ClaimRecord { pub const LEN: usize = 8; }
+
+/// One Merkle proof element.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct ProofNode {
+    pub sibling: [u8; 32],
+    pub is_left: bool,
+}

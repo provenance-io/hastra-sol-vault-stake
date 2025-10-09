@@ -2,14 +2,15 @@ import * as anchor from "@coral-xyz/anchor";
 import {Program} from "@coral-xyz/anchor";
 import {HastraSolVaultStake} from "../target/types/hastra_sol_vault_stake";
 import {PublicKey} from "@solana/web3.js";
-import { createHash } from "crypto";
-import { MerkleTree } from "merkletreejs";
 import yargs from "yargs";
-
+import {
+    allocationsToMerkleTree,
+    idl,
+} from "./cryptolib";
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
-const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultStake>;
+const program: Program<HastraSolVaultStake> = new anchor.Program(idl as anchor.Idl, provider) as Program<HastraSolVaultStake>;
 
 const args = yargs(process.argv.slice(2))
     .option("epoch", {
@@ -22,37 +23,35 @@ const args = yargs(process.argv.slice(2))
         description: "Allocations object: {allocations: [{\"account\": \"3m7...sKf\", \"amount\": 1000}, ...]}",
         required: true,
     })
+    .option("just_print", {
+        type: "boolean",
+        description: "If true, just print the leaves and root without creating the epoch on-chain",
+        required: false,
+        default: false,
+    })
     .parseSync();
-
-// helper: sha256 hash
-const sha256 = (x: Buffer) => createHash("sha256").update(x).digest();
-
-// leaf = sha256(user || amount_le_u64 || epochIndex_le_u64)
-function makeLeaf(user: PublicKey, amount: anchor.BN | number, epoch: number): Buffer {
-    return sha256(Buffer.concat([
-        user.toBuffer(),
-        (anchor.BN.isBN(amount) ? amount : new anchor.BN(amount)).toArrayLike(Buffer, "le", 8),
-        new anchor.BN(epoch).toArrayLike(Buffer, "le", 8),
-    ]));
-}
 
 const main = async () => {
     const epochIndex = args.epoch;
-    const allocations: {user: PublicKey, amount: anchor.BN}[] = (JSON.parse(args.reward_allocations).allocations as {account: string, amount: number}[]).map((a: {account: string, amount: number}) => {
-        return {user: new PublicKey(a.account), amount: new anchor.BN(a.amount)};
-    });
+    const { tree, leaves, allocations } = allocationsToMerkleTree(args.reward_allocations, epochIndex);
+    const root = tree.getRoot();
 
-    console.log("Epoch:", epochIndex.toString());
-    console.log("Allocations:", allocations.map(a => ({user: a.user.toBase58(), amount: a.amount.toString()})));
+    if (args.just_print) {
+        const leaf = leaves[0];
+        const treeProof = tree.getProof(leaf);
+        console.log("Proof length:", treeProof.length);
+        console.log("Proof:", treeProof);
+        console.log("Proof (hex):", treeProof.map(p => p.data.toString("hex")));
 
-    // Merkle tree setup
-    // build tree
-    const leaves = allocations.map(a => makeLeaf(a.user, a.amount, epochIndex));
-    const tree = new MerkleTree(leaves, sha256, { sortPairs: true });
-    const root = tree.getRoot(); // Buffer
+        // Verify
+        const verified = tree.verify(treeProof, leaf, tree.getRoot());
+        console.log("Verified:", verified);
+
+        return;
+    }
     const total = allocations.reduce((acc, a) => acc.add(a.amount), new anchor.BN(0));
 
-    const [configPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
+    const [configPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("config")],
         program.programId
     );

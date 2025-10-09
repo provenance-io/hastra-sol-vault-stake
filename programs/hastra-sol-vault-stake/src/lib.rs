@@ -44,6 +44,7 @@ pub mod state;
 
 use account_structs::*;
 use anchor_lang::prelude::*;
+use state::ProofNode;
 
 declare_id!("dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp");
 
@@ -143,7 +144,7 @@ pub mod hastra_sol_vault_stake {
     /// 	•	The program verifies the Merkle proof against the root.
     /// 	•	If valid, transfer reward tokens (PRIME) from the rewards vault to the user's staking mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
+    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }

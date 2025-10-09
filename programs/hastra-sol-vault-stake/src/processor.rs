@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::token::spl_token::instruction::AuthorityType;
 use anchor_spl::token::{self, Burn, MintTo, Transfer};
+use crate::state::ProofNode;
 
 pub fn initialize(
     ctx: Context<Initialize>,
@@ -303,7 +304,7 @@ pub fn create_rewards_epoch(
     Ok(())
 }
 
-pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
+pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
     require!(amount > 0, CustomErrorCode::InvalidAmount);
     // leaf = sha256(user || amount_le || epoch_index_le)
     let mut data = Vec::with_capacity(32 + 8 + 8);
@@ -312,15 +313,32 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32
     data.extend_from_slice(&ctx.accounts.epoch.index.to_le_bytes());
     let mut node = hashv(&[&data]).to_bytes();
 
-    // Merkle verify (sorted pairs)
-    for sib in &proof {
-        let (a, b) = if node <= *sib {
-            (node, *sib)
+    msg!("User Leaf node: {}", hex::encode(node));
+
+    // iterate through proof
+    for (i, step) in proof.iter().enumerate() {
+        let sib = &step.sibling;
+
+        if sib.iter().all(|&b| b == 0) {
+            msg!("[{}] right: sibling is zero - hashing just the node", i);
+            node = hashv(&[&node]).to_bytes();
+            continue;
+        }
+
+        if step.is_left {
+            // sibling is left, so hash(sib || node)
+            node = hashv(&[sib, &node]).to_bytes();
+            msg!("[{}] left: hash(sib,node) = {}", i, hex::encode(node));
         } else {
-            (*sib, node)
-        };
-        node = hashv(&[&a, &b]).to_bytes();
+            // sibling is right, so hash(node || sib)
+            node = hashv(&[&node, sib]).to_bytes();
+            msg!("[{}] right: hash(node,sib) = {}", i, hex::encode(node));
+        }
     }
+
+    msg!("Computed root: {}", hex::encode(node));
+    msg!("Expected root: {}", hex::encode(ctx.accounts.epoch.merkle_root));
+
     require!(
         node == ctx.accounts.epoch.merkle_root,
         CustomErrorCode::InvalidMerkleProof
