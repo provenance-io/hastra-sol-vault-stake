@@ -1,11 +1,12 @@
 use crate::account_structs::*;
 use crate::error::*;
+use crate::events::*;
 use crate::guard::validate_program_update_authority;
+use crate::state::{ProofNode, MAX_UNBONDING_PERIOD, MIN_UNBONDING_PERIOD, MAX_ADMINISTRATORS};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::token::spl_token::instruction::AuthorityType;
 use anchor_spl::token::{self, Burn, MintTo, Transfer};
-use crate::state::ProofNode;
 
 pub fn initialize(
     ctx: Context<Initialize>,
@@ -15,9 +16,23 @@ pub fn initialize(
     freeze_administrators: Vec<Pubkey>,
     rewards_administrators: Vec<Pubkey>,
 ) -> Result<()> {
+    validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
     require!(
-        freeze_administrators.len() <= 5,
+        freeze_administrators.len() <= MAX_ADMINISTRATORS,
         CustomErrorCode::TooManyAdministrators
+    );
+    require!(
+        rewards_administrators.len() <= MAX_ADMINISTRATORS,
+        CustomErrorCode::TooManyAdministrators
+    );
+    require!(unbonding_period >= MIN_UNBONDING_PERIOD, CustomErrorCode::InvalidBondingPeriod);
+    require!(
+        unbonding_period <= MAX_UNBONDING_PERIOD,
+        CustomErrorCode::InvalidBondingPeriod
+    ); 
+    require!(
+        vault_mint != stake_mint,
+        CustomErrorCode::VaultAndMintCannotBeSame
     );
 
     let config = &mut ctx.accounts.config;
@@ -51,15 +66,41 @@ pub fn initialize(
     Ok(())
 }
 
-pub fn update_config(ctx: Context<UpdateConfig>, new_unbonding_period: i64) -> Result<()> {
+pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
     validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
     let config = &mut ctx.accounts.config;
+    config.paused = pause;
+
+    msg!("Protocol paused: {}", pause);
+
+    Ok(())
+}
+
+pub fn update_config(ctx: Context<UpdateConfig>, new_unbonding_period: i64) -> Result<()> {
+    validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
+    require!(new_unbonding_period >= MIN_UNBONDING_PERIOD, CustomErrorCode::InvalidBondingPeriod);
+    require!(
+        new_unbonding_period <= MAX_UNBONDING_PERIOD,
+        CustomErrorCode::InvalidBondingPeriod
+    );
+
+    let config = &mut ctx.accounts.config;
     config.unbonding_period = new_unbonding_period;
+
+    emit!(UnbondingPeriodUpdated {
+        admin: ctx.accounts.signer.key(),
+        old_period: ctx.accounts.config.unbonding_period,
+        new_period: new_unbonding_period,
+        mint: ctx.accounts.config.mint,
+        vault: ctx.accounts.config.vault,
+    });
+
     Ok(())
 }
 
 pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
     require!(amount > 0, CustomErrorCode::InvalidAmount);
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
 
     let cpi_accounts = Transfer {
         from: ctx.accounts.user_vault_token_account.to_account_info(),
@@ -86,11 +127,20 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         ),
         amount,
     )?;
+
+    emit!(DepositEvent {
+        user: ctx.accounts.signer.key(),
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.vault_token_account.key(),
+    });
+
     Ok(())
 }
 
 pub fn unbond(ctx: Context<Unbond>, amount: u64) -> Result<()> {
     require!(amount > 0, CustomErrorCode::InvalidAmount);
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
 
     let current_mint_amount = ctx.accounts.user_mint_token_account.amount;
     require!(
@@ -104,10 +154,18 @@ pub fn unbond(ctx: Context<Unbond>, amount: u64) -> Result<()> {
     ticket.start_balance = current_mint_amount;
     ticket.start_ts = Clock::get()?.unix_timestamp;
 
+    emit!(UnbondEvent {
+        user: ctx.accounts.signer.key(),
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.config.vault,
+    });
+
     Ok(())
 }
 
 pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     let now = Clock::get()?.unix_timestamp;
     let ticket = &ctx.accounts.ticket;
     require_keys_eq!(
@@ -158,6 +216,13 @@ pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
         redeem,
     )?;
 
+    emit!(RedeemEvent {
+        user: ctx.accounts.signer.key(),
+        amount: redeem,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.vault_token_account.key(),
+    });
+
     Ok(())
 }
 
@@ -173,7 +238,7 @@ pub fn update_freeze_administrators(
     let config = &mut ctx.accounts.config;
 
     require!(
-        new_administrators.len() <= 5,
+        new_administrators.len() <= MAX_ADMINISTRATORS,
         CustomErrorCode::TooManyAdministrators
     );
 
@@ -198,7 +263,7 @@ pub fn update_rewards_administrators(
     let config = &mut ctx.accounts.config;
 
     require!(
-        new_administrators.len() <= 5,
+        new_administrators.len() <= MAX_ADMINISTRATORS,
         CustomErrorCode::TooManyAdministrators
     );
 
@@ -305,6 +370,7 @@ pub fn create_rewards_epoch(
 }
 
 pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     require!(amount > 0, CustomErrorCode::InvalidAmount);
     // leaf = sha256(user || amount_le || epoch_index_le)
     let mut data = Vec::with_capacity(32 + 8 + 8);
@@ -337,7 +403,10 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
     }
 
     msg!("Computed root: {}", hex::encode(node));
-    msg!("Expected root: {}", hex::encode(ctx.accounts.epoch.merkle_root));
+    msg!(
+        "Expected root: {}",
+        hex::encode(ctx.accounts.epoch.merkle_root)
+    );
 
     require!(
         node == ctx.accounts.epoch.merkle_root,
@@ -360,5 +429,14 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         ),
         amount,
     )?;
+
+    emit!(RewardsClaimed {
+        user: ctx.accounts.user.key(),
+        epoch: ctx.accounts.epoch.index,
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.config.vault,
+    });
+
     Ok(())
 }

@@ -47,6 +47,11 @@ const main = async () => {
         program.programId
     );
 
+    const [ticketPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("ticket"), signer.toBuffer()],
+        program.programId
+    );
+
     // Program args
     const mint = new anchor.web3.PublicKey(args.mint);
     const vaultTokenAccount = new anchor.web3.PublicKey(args.vault_token_account);
@@ -59,6 +64,7 @@ const main = async () => {
     console.log(`User Vault Token Account: ${userVaultTokenAccount.toBase58()}`);
     console.log(`Config PDA: ${configPda.toBase58()}`);
     console.log(`Vault Authority PDA: ${vaultAuthorityPda.toBase58()}`);
+    console.log(`Ticket PDA: ${ticketPda.toBase58()}`);
 
     const tx = await program.methods
         .redeem()
@@ -71,7 +77,7 @@ const main = async () => {
             userMintTokenAccount: userMintTokenAccount,
             mint: mint,
             tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-            ticket: anchor.web3.Keypair.generate().publicKey, // Temporary, will be created in the program
+            ticket: ticketPda
         }).rpc();
 
     console.log("Transaction:", tx);

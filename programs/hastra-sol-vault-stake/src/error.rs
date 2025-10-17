@@ -18,7 +18,7 @@ pub enum CustomErrorCode {
     InsufficientUnbondingBalance = 7,
     #[msg("Unbonding is currently in progress")]
     UnbondingInProgress = 8,
-    
+
     #[msg("Invalid mint provided")]
     InvalidMint = 9,
     #[msg("Invalid vault mint provided")]
@@ -54,5 +54,10 @@ pub enum CustomErrorCode {
     RewardsAlreadyClaimed = 24,
     #[msg("Invalid rewards administrator")]
     InvalidRewardsAdministrator = 25,
-
+    #[msg("Vault and mint cannot be the same")]
+    VaultAndMintCannotBeSame = 26,
+    #[msg("Protocol is paused")]
+    ProtocolPaused = 27,
+    #[msg("Invalid bonding period")]
+    InvalidBondingPeriod = 28,
 }

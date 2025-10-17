@@ -131,6 +131,9 @@ This design ensures that yield generated from rehypothecated vault tokens is fai
 - `RewardsEpoch`: Manages reward distribution with merkle proofs
 - `ClaimRecord`: Prevents reward double-spending
 
+** Protocol Pause and Unpause **
+- Program authority can pause and unpause the protocol preventing deposity, claim, unstake, and redeem.
+
 This creates a secure, flexible liquid staking solution suitable for DeFi protocols requiring both liquidity and governance controls.
 
 There are several different aspects to this repo, but all are related to the Vault/Mint/Stake program. We use rust (for the solana program), typescript (helpers that use the solana and anchor libs), and resource files (configurations, images, etc... that assist in setting everything up).

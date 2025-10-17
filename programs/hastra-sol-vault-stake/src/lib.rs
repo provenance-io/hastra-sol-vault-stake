@@ -38,6 +38,7 @@ pub mod account_structs;
 /// token authority controls. All token operations are atomic and validated
 /// through Solana's transaction model.
 pub mod error;
+pub mod events;
 mod guard;
 pub mod processor;
 pub mod state;
@@ -74,6 +75,12 @@ pub mod hastra_sol_vault_stake {
         )
     }
 
+    /// Pauses or unpauses the protocol operations:
+    /// - pause: true to pause, false to unpause
+    pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
+        processor::pause(ctx, pause)
+    }
+    
     /// Updates the program configuration with new token addresses:
     /// - new_unbonding_period: New unbonding period in seconds
     pub fn update_config(ctx: Context<UpdateConfig>, new_unbonding_period: i64) -> Result<()> {
@@ -144,8 +151,11 @@ pub mod hastra_sol_vault_stake {
     /// 	•	The program verifies the Merkle proof against the root.
     /// 	•	If valid, transfer reward tokens (PRIME) from the rewards vault to the user's staking mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
+    pub fn claim_rewards(
+        ctx: Context<ClaimRewards>,
+        amount: u64,
+        proof: Vec<ProofNode>,
+    ) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }
-    

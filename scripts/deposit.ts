@@ -45,6 +45,11 @@ const main = async () => {
         program.programId
     );
 
+    const [vaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("vault_authority")],
+        program.programId
+    );
+
     const [mintAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("mint_authority")],
         program.programId
@@ -64,12 +69,14 @@ const main = async () => {
     console.log("User Mint Token Account:", userMintTokenAccount.toBase58());
     console.log("Config PDA:", configPda.toBase58());
     console.log("Mint Authority PDA:", mintAuthorityPda.toBase58());
+    console.log("Vault Authority PDA:", vaultAuthorityPda.toBase58());
 
     const tx = await program.methods
         .deposit(amount)
         .accountsStrict({
             config: configPda,
             vaultTokenAccount: vaultTokenAccount,
+            vaultAuthority: vaultAuthorityPda,
             mint: mint,
             mintAuthority: mintAuthorityPda,
             signer: signer,
