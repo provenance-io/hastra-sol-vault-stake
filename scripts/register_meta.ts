@@ -27,17 +27,17 @@ const args = yargs(process.argv.slice(2))
     })
     .option("name", {
         type: "string",
-        description: "The name of the token (.e.g. sYLDS)",
+        description: "The name of the token (.e.g. PRIME)",
         required: true,
     })
     .option("symbol", {
         type: "string",
-        description: "The name of the token (.e.g. sYLDS)",
+        description: "The name of the token (.e.g. PRIME)",
         required: true,
     })
     .option("token_meta_url", {
         type: "string",
-        description: "The public location of the token metadata json file (.e.g. https://storage.googleapis.com/hastra-cdn-prod/spl/sylds.meta.json)",
+        description: "The public location of the token metadata json file (.e.g. https://storage.googleapis.com/hastra-cdn-prod/spl/PRIME.meta.json)",
         required: true,
     })
     .option("update", {

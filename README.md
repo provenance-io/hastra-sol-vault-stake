@@ -1,6 +1,6 @@
 # Hastra Vault/Mint/Stake Protocol on Solana
 
-This Solana program implements a **vault-based liquid staking protocol** that allows users to stake vault tokens (like wYLDS) and receive tradeable liquid staking tokens (like sYLDS) in return.
+This Solana program implements a **vault-based liquid staking protocol** that allows users to stake vault tokens (like wYLDS) and receive tradeable liquid staking tokens (like PRIME) in return.
 
 ## Core Architecture
 
@@ -37,7 +37,7 @@ Rewards are distributed on-chain using a merkle tree-based claim system to ensur
 - Epochs are immutable once created to ensure integrity
 - Administrators can create epochs with a merkle root summarizing user rewards
 - Users claim rewards by providing a merkle proof against the stored root
-- Rewards are minted as additional staking tokens (sYLDS).
+- Rewards are minted as additional staking tokens (PRIME).
 
 **Merkle Tree Structure:**
 - **Leaf Node**: `sha256(user_pubkey || reward_amount_le_bytes || epoch_index_le_bytes)`
@@ -131,6 +131,9 @@ This design ensures that yield generated from rehypothecated vault tokens is fai
 - `RewardsEpoch`: Manages reward distribution with merkle proofs
 - `ClaimRecord`: Prevents reward double-spending
 
+** Protocol Pause and Unpause **
+- Program authority can pause and unpause the protocol preventing deposity, claim, unstake, and redeem.
+
 This creates a secure, flexible liquid staking solution suitable for DeFi protocols requiring both liquidity and governance controls.
 
 There are several different aspects to this repo, but all are related to the Vault/Mint/Stake program. We use rust (for the solana program), typescript (helpers that use the solana and anchor libs), and resource files (configurations, images, etc... that assist in setting everything up).
@@ -208,17 +211,208 @@ To build the project with anchor, we have to install rust. It is also best to en
 $ anchor build
 ```
 
-## Build and Release
+> This section uses the `scripts/config.sh` script to execute commands with the correct environment variables set.
+> You can also run the commands directly in your terminal, but ensure you set the `ANCHOR_PROVIDER_URL` and `ANCHOR_WALLET` environment variables correctly.
+> Refer to the `config.sh` script for examples.
 
-> Use the `scripts/config.sh` script to execute commands with the correct environment variables set.
+
+### Generate a new keypair
+
+This section assumes a fresh rollout on devnet. If you already have a keypair you want to use, skip this step.
+
+```bash
+$ solana-keygen new --no-passphrase --force --outfile ~/.config/solana/hastra-devnet-id.json
+Generating a new keypair
+Wrote new keypair to /Users/jd/.config/solana/hastra-devnet-id.json
+================================================================================
+pubkey: GusaXhaH11VvYyFvsEiaaaBw3oFUjgmVoJZswzb9cnqc
+================================================================================
+Save this seed phrase to recover your new keypair:
+refuse detail throw curtain spell journey grab shiver assume salute recycle tube
+================================================================================
+```
+
+### Fresh Rollout of the Vault/Mint Program
+
+#### Start ./scripts/config.sh
+
+```
+$ sh config.sh
+
+Select Solana network (devnet, mainnet-beta, testnet) []: devnet
+
+Current settings in devnet_vault.history:
+
+Enter path to Solana wallet keypair [/Users/jd/.config/solana/hastra-devnet-id.json]:
+Enter path to Solana wallet keypair [/Users/jd/.config/solana/hastra-devnet-id.json]:
+Enter Vault Token Mint address (the token accepted for swap) []: VPaRhdpjLLCTcCFu23Awq6U5q9dzuhW2oQwP37J1Nxb
+
+Config File: /Users/jd/.config/solana/cli/config.yml
+RPC URL: https://api.devnet.solana.com
+WebSocket URL: wss://api.devnet.solana.com/ (computed)
+Keypair Path: /Users/jd/.config/solana/hastra-devnet-id.json
+Commitment: confirmed
+
+Public Key: HVghX7uoGJYCxbom5BHCVxPWSXzTcPFNRogmLhgvKML6 (3.50890496 SOL)
+Program ID: AixEL5nihPVirtmPki2m1bS2a2eVeMY22hxyihYWXrBL
+
+Select an action:
+1) Build Program		             8) Show Current Settings
+2) Deploy Program		             9) Update Unbonding Period
+3) Initialize Program		        10) Update Freeze Authority
+4) Setup Metaplex		            11) Create Mint Token
+5) Set Mint and Freeze Authorities  12) Create Vault Token Account
+6) Update Metaplex		            13) Reset and Set New Program ID
+7) Show Accounts & PDAs		        14) Exit
+#?
+```
+
+#### Choose option `11` Create Mint Token
+
+This step creates a new mint token that will be minted when users deposit the vault token (e.g. wYLDS). When
+the program is initialized, the mint authority will be set to a PDA owned by the program.
+
+```
+Creating Mint Token...
+Mint Token: 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg
+```
+
+#### Choose Option `12` Create Vault Token Account
+
+This step creates the token account that will hold the vault tokens when users stake their mint tokens.
+When the program is initialized, the vault authority PDA will be set as the owner of this token account.
+
+```
+Creating Vault Token Account (ATA)...
+Vault Token Account: Dz4nct4PowiRpiKrUEShc3vyTKVaPLo8aKcFYYqrUgdq
+```
+
+#### Choose Option `4` to Setup Mint Token on Metaplex
+
+Sets up the mint token on Metaplex. You will be prompted for the name, symbol, and metadata URL. Metaplex is used
+to store the token metadata, including the image that will be displayed in wallets as well as the denomination and display
+decimals.
+
+```
+Enter Metaplex Token Name []: PRIMEdev
+Enter Metaplex Token Symbol []: PRIMEdev
+Enter Metaplex Token Metadata URL (must be a valid JSON URL) []: https://storage.googleapis.com/hastra-cdn-prod/spl/primedevnet.meta.json
+yarn run v1.22.19
+$ /Users/jd/provenanceio/git/hastra-sol-vault-stake/node_modules/.bin/ts-node scripts/register_meta.ts --mint 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg --keypair /Users/jd/.config/solana/hastra-devnet-id.json --name PRIMEdev --symbol PRIMEdev --token_meta_url https://storage.googleapis.com/hastra-cdn-prod/spl/primedevnet.meta.json
+Using mint 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg current key owner: HVghX7uoGJYCxbom5BHCVxPWSXzTcPFNRogmLhgvKML6
+Using token name: PRIMEdev
+Using token symbol: PRIMEdev
+Using token meta_url: https://storage.googleapis.com/hastra-cdn-prod/spl/primedevnet.meta.json
+Using Solana RPC: https://api.devnet.solana.com
+Transaction Result: {"signature":{"0":71,"1":50,"2":150,"3":101,"4":39,"5":139,"6":224,"7":224,"8":164,"9":69,"10":185,"11":82,"12":139,"13":253,"14":161,"15":141,"16":107,"17":35,"18":6,"19":119,"20":172,"21":130,"22":159,"23":90,"24":27,"25":207,"26":41,"27":122,"28":249,"29":247,"30":195,"31":253,"32":173,"33":41,"34":65,"35":88,"36":230,"37":63,"38":39,"39":73,"40":82,"41":90,"42":119,"43":166,"44":164,"45":117,"46":227,"47":196,"48":107,"49":119,"50":236,"51":59,"52":64,"53":118,"54":139,"55":134,"56":142,"57":184,"58":33,"59":251,"60":9,"61":200,"62":53,"63":4},"result":{"context":{"slot":412796819},"value":{"err":null}}}
+✨  Done in 14.92s.
+```
+
+#### Choose Option `1` to Build Program
+
+Now that the requisite tokens are created, we can build the program. This will also generate the IDL and typescript types
+that are used by the scripts and can be used by other frontends.
+
+> Be sure to set the location of any FEs that use the IDL and types. In this deployment, the `hastra-fi-nexus-flow` frontend
+> is used, so we set the paths accordingly.
+
+```
+...snip...
+    Finished `release` profile [optimized] target(s) in 0.51s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+     Running unittests src/lib.rs (/Users/jd/provenanceio/git/hastra-sol-vault-stake/target/debug/deps/hastra_sol_vault_stake-7ca5585766e0de87)
+
+Enter destination for hastra_sol_vault_stake.ts TYPE [../../hastra-fi-nexus-flow/src/types/hastra-sol-vault-stake.ts]:
+Enter destination for hastra_sol_vault_stake.ts IDL  [../../hastra-fi-nexus-flow/src/types/idl/hastra-sol-vault-stake.ts]:
+
+Copied to ../../hastra-fi-nexus-flow/src/types/hastra-sol-vault-stake.ts
+Copied to ../../hastra-fi-nexus-flow/src/types/idl/hastra-sol-vault-stake.ts
+
+Config File: /Users/jd/.config/solana/cli/config.yml
+RPC URL: https://api.devnet.solana.com
+WebSocket URL: wss://api.devnet.solana.com/ (computed)
+Keypair Path: /Users/jd/.config/solana/hastra-devnet-id.json
+Commitment: confirmed
+
+Public Key: HVghX7uoGJYCxbom5BHCVxPWSXzTcPFNRogmLhgvKML6 (3.49026848 SOL)
+Program ID: 2uqPDoKh5RWUinnMTPyetaq2H24cr2BLi4frpUjQ92cD
+```
+
+#### Choose Option `2` to Deploy Program
+
+When the program builds successfully, you can deploy it to the Solana cluster. This will upload the program binary and set the program ID.
+The program ID, specific to your Solana ID, will be saved to the local anchor config as well as updated in the `lib.rs` file.
+
+```
+Deploying Program...
+Getting Program ID...
+Updated ../programs/hastra-sol-vault-stake/src/lib.rs with new Program ID dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp
+Saving Deploy Keypair to local config /Users/jd/.config/solana
+   Compiling hastra-sol-vault-stake v0.1.0 (/Users/jd/provenanceio/git/hastra-sol-vault-stake/programs/hastra-sol-vault-stake)
+ ..snip...
+Copied to ../../hastra-fi-nexus-flow/src/types/hastra-sol-vault-stake.ts
+Copied to ../../hastra-fi-nexus-flow/src/types/idl/hastra-sol-vault-stake.ts
+Program Id: dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp
+
+Signature: zRjfMSdeRswn3qPPN6CgtdBx46WMwXwJDK3G75AE7ysSqBqATuTn2NQXj5f4A4yAdBdrnfEqNNAJJLwbQWrdew5
+
+Program deployed with ID: dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp
+```
+
+### Choose Option `3` to Initialize Program
+
+Now that the program is deployed, we can initialize it. This will set up the config account and set the various PDAs that the program will use to control the vault and mint tokens. You will be prompted for unbonding period, freeze administrators, and rewards administrators.
+
+```
+Enter comma-separated list of Freeze Administrator addresses []: GrzQ4vW3UviEDKN7aHGroayoJC3B87ovcSofyt2Q48KG,56NYkGD9TCijuYgfeiHTbMN9sqcr9uH2CeV1GnSCy4Xn
+Enter comma-separated list of Rewards Administrator addresses []: GrzQ4vW3UviEDKN7aHGroayoJC3B87ovcSofyt2Q48KG,56NYkGD9TCijuYgfeiHTbMN9sqcr9uH2CeV1GnSCy4Xn
+Enter Unbonding Period (in seconds) []: 120
+
+Program ID: dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp
+Vault (accepted token): VPaRhdpjLLCTcCFu23Awq6U5q9dzuhW2oQwP37J1Nxb
+Mint (token to be minted): 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg
+Unbonding Period (seconds): <BN: 78>
+Vault Token Account: Dz4nct4PowiRpiKrUEShc3vyTKVaPLo8aKcFYYqrUgdq
+Config PDA: AwXPZz2r1AZRtZFF5hZYBkqknYgfWQ5yLfWNqnABNa63
+Vault Authority PDA: 9Ee194o3nDNYHEwL2ZJnyw4iC56cEDqqDHefQm2vqmBW
+Mint Authority PDA: 8f9TVEwWpUNFrUyqebszcapX7Sp6MQRACoAkf8EktorZ
+Freeze Authority PDA: 6M6Vt7mpht37Dv3csrFqqpeF6UiexLazzxbFda7GzAE6
+Freeze Administrators: [
+  'GrzQ4vW3UviEDKN7aHGroayoJC3B87ovcSofyt2Q48KG',
+  '56NYkGD9TCijuYgfeiHTbMN9sqcr9uH2CeV1GnSCy4Xn'
+]
+Rewards Administrators: [
+  'GrzQ4vW3UviEDKN7aHGroayoJC3B87ovcSofyt2Q48KG',
+  '56NYkGD9TCijuYgfeiHTbMN9sqcr9uH2CeV1GnSCy4Xn'
+]
+Transaction: 7EdoUS4ncKyZ4CHirWYwxx9yNYjND2eUo27ejcAVzZH4ohSWnSHsyyK9Cdme5txEccJJMUD2hqys58z7Be21kdZ
+Done in 2.75s.
+```
+
+#### Choose Option `5` Set Mint and Freeze Authorities
+
+This step sets the mint and freeze authorities to the PDAs created during initialization. This ensures that only the program can mint new tokens and freeze accounts holding the mint token.
+
+```
+Setting Mint Authority to 8f9TVEwWpUNFrUyqebszcapX7Sp6MQRACoAkf8EktorZ
+Updating 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg
+  Current mint: HVghX7uoGJYCxbom5BHCVxPWSXzTcPFNRogmLhgvKML6
+  New mint: 8f9TVEwWpUNFrUyqebszcapX7Sp6MQRACoAkf8EktorZ
+
+Signature: vSkbYztvxJ3HqtnDD9c8M8afvF6BNUJZCF9mMJ9xbMDNYzZvZ4WGV5ZrEmheMJAP8D9xJNzSvQBrvJDR5PY8Yyx
+
+Setting Freeze Authority to 6M6Vt7mpht37Dv3csrFqqpeF6UiexLazzxbFda7GzAE6
+Updating 7Ei9b4A5MqddAT5gtjW4frRXuwk2iNefU6NMUaqQraqg
+  Current freeze: HVghX7uoGJYCxbom5BHCVxPWSXzTcPFNRogmLhgvKML6
+  New freeze: 6M6Vt7mpht37Dv3csrFqqpeF6UiexLazzxbFda7GzAE6
+
+Signature: 4Y7SD8oTAy7twiXVoBbbXwmXVuGRhZXc16BuGsQQjqtw9Z9Qzb47fhgv6VU6ngCPaRjpRLBRGfnP2uvKpHdQWdgf
+```
+
  
 ### Local Prerequisite Token Set Up
 
-Before deploying the program, there are several tokens that must be created. These are done using the spl-token cli. The commands below assume you have a solana wallet set up and configured to use devnet. You can use `solana config get` to see your current configuration.
-
-For mainnet-beta, use `--url https://api.mainnet-beta.solana.com` and for testnet use `--url https://api.testnet.solana.com`. 
-
-Ensure that your solana cli is configured to use the correct wallet that you want to be the upgrade authority of the program. You can use `solana config set --keypair ~/.config/solana/your-keypair.json` to set the keypair you want to use.
+The program requires two tokens to operate. The tokens can be any SPL token, but typically the vault token is a stablecoin like wYLDS, and the mint token is a custom token that represents a claim on the vault tokens. There are token accounts for both the user and the program to hold the tokens.
 
 To make it easier to understand the tokens in play, here's a sequence diagram on how the tokens interact.
 
@@ -230,7 +424,7 @@ sequenceDiagram
     
     User->>Program: Deposit Vault Mint Token (wYLDS)
     Program->>VaultAccount: Transfer Vault Mint (wYLDS) to Vault Token Account
-    Program->>User: Mint the Mint Token (sYLDS)
+    Program->>User: Mint the Mint Token (PRIME)
     User->>Program: Unbond
     activate Program
     Program->>Program: Create Unbonding Ticket
@@ -238,7 +432,7 @@ sequenceDiagram
     deactivate Program
     User->>Program: Redeem after Unbonding Period
     activate Program
-    Program->>Program: Burn sYLDS
+    Program->>Program: Burn PRIME
     Program->>Program: Remove Unbonding Ticket
     Program->>User: Transfer Vault Token (wYLDS) from Vault Token Account
     deactivate Program
@@ -248,143 +442,13 @@ sequenceDiagram
 
 | Token/Account Type  | Symbol  | Description                                                  | Mint Authority                                                                                        | Freeze Authority            |
 |---------------------|---------|--------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------|
-| Vault Mint          | wYLDS   | The token the user deposits to receive the minted token (sYLDS) | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program |
-| Mint Token          | sYLDS   | The token that is minted when the user deposits the vault token (wYLDS) | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program  | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program |
-| Vault Token Account | N/A     | The token account that will hold the vaulted tokens (e.g. wYLDS) when users deposit them in exchange for the minted token (e.g. sYLDS). | Program Derived Address (PDA) of the program                                                          | N/A |
-
-### Create the Tokens
-
-> Note that the `--config` flag is optional if you have already set your solana config to use the correct wallet and network.
-
-**Vault Mint**
-
-e.g. wYLDS - the token the user deposits (vaults) to receive the mint token (sYLDS)
-
-> NOTE: the `wYLDS` token should be created as part of the [wYLDS mint program creation process](https://github.com/provenance-io/sol-vault-mint). However, if you wish to create it manually, you can use the command below.
-
-```bash
-$ spl-token create-token --decimals 6 --enable-freeze \
-  --url https://api.devnet.solana.com \
-  --config ~/.config/solana/cli/devnet-config.yml
-  
-Creating token 8hbKALWTgf19Zy26frCZw7fKbSxpxJnTKUo67oANvDCb under program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-
-Address:  8hbKALWTgf19Zy26frCZw7fKbSxpxJnTKUo67oANvDCb
-Decimals:  6
-```
-
-**Mint Token**
-
-e.g. sYLDS - the token that is minted when the user deposits the vault token (wYLDS)
-
-```bash
-$ spl-token create-token --decimals 6  --enable-freeze \
-  --url https://api.devnet.solana.com \
-  --config ~/.config/solana/cli/devnet-config.yml
-  
-Creating token AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X under program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
-
-Address:  AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X
-Decimals:  6
-```
-
-**Vault Token Account**
-
-The token account that will hold the vaulted tokens (e.g. wYLDS) when users deposit them in exchange for the minted token (e.g. sYLDS).
-
-When the program has been initialized, the vault token account authority is set to the PDA of the program.
-
-```bash
-$ spl-token create-account 8hbKALWTgf19Zy26frCZw7fKbSxpxJnTKUo67oANvDCb \
-            --owner ~/.config/solana/hastra-devnet-id.json \
-            --url https://api.devnet.solana.com
-                        
-Creating account D3j4cPrzyhcFZTjZfG1zvioLbkH58Vnpbv3mBaYLVxfx
-```
-
-### Anchor Build
-```bash
-$ anchor build
-```
-
-### Deploy
-
-> Use `api.solana.com` for mainnet, `api.devnet.solana.com` for devnet, and `api.testnet.solana.com` for testnet.
-
-```bash
-$ solana program deploy ./target/deploy/hastra_sol_vault_stake.so \
-         --url https://api.devnet.solana.com \
-         --upgrade-authority ~/.config/solana/hastra-devnet-id.json
-         
-Program ID: 6dbdnL74Nfc999jdHDP9uqBesriW6ewzoKP4s5eXdK7g         
-```
-
-### Metaplex
-
-To get our FE, Solana Explorer, Phantom wallet, et al to recognize our token image, uri, etc. we have to submit our token info using the `umi` lib.
-
-### CDN for Hastra Images/JSON
-
-The `provenance-io` [Google Cloud Storage bucket](https://console.cloud.google.com/storage/browser/hastra-cdn-prod/spl;tab=objects?project=provenance-io) contains the metadata and images for the `*YLDS` tokens.
-
-#### Pushing the data using umi
-
-Use the `register_meta.ts` script to register the token metadata with Metaplex.
-
-** Staking Mint **
-```bash
-$ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
-  ANCHOR_WALLET=~/.config/solana/hastra-devnet-id.json \
-  yarn run ts-node scripts/register_meta.ts \
-  --mint AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X \
-  --keypair ~/.config/solana/hastra-devnet-id.json \
-  --name "Hastra sYLDS Devnet" \
-  --symbol sYLDSdev \
-  --token_meta_url https://storage.googleapis.com/hastra-cdn-prod/spl/syldsdevnet.meta.json
-```
-
-> Tip: you can update the Metaplex info using the `--update` flag
-
-### Initialize
-
-This is where you get to set:
-* Vault Token: the token that is accepted from the user in exchange for the minted token (e.g. wYLDS).
-* Vault Token Account: The token account that will hold the vaulted tokens (e.g. wYLDS) when users deposit them in exchange for the minted token (e.g. sYLDS). This token account must be created prior to calling initialize (see above). The authority of this token account will be set to the PDA of the program at initialization time.
-* Mint Token: the token that will be minted and transferred to the user the mint token (eg. sYLDS)
-* Unbonding Period: The unbonding period (in seconds) defines how long a user must hold sYLDS, after requesting an unbond, before they can redeem it for the Vault Token (e.g. wYLDS). After the unbonding period has elapsed the user can call the redeem function to burn the staking token (sYLDS) and receive the vault token back (wYLDS).
-
-```bash
-$ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
-  ANCHOR_WALLET=~/.config/solana/hastra-devnet-id.json \
-  yarn run ts-node scripts/initialize.ts \
-  --vault 8hbKALWTgf19Zy26frCZw7fKbSxpxJnTKUo67oANvDCb \
-  --vault_token_account D3j4cPrzyhcFZTjZfG1zvioLbkH58Vnpbv3mBaYLVxfx \
-  --mint AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X \
-  --unbonding_period 1814400
-```
-
-> IMPORTANT: After initialization, the mint authority of the Mint Token (e.g. sYLDS) must be set to the `Mint Authority PDA` output by the `initialize` script. THIS SHOULD BE DONE AFTER SETTING UP THE TOKEN IN METAPLEX.
- 
-
-## Setting the Staking Mint Authority
-
-After initializing the program and registering the staking mint token with Metaplex, the mint authority of the Mint Token (e.g. sYLDS) must be set to the `Mint Authority PDA` output by the `initialize` script.
-
-** Staking Mint **
-```bash
-$ spl-token authorize AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X mint 2DSeF8fQwj9F6DgF6MwmWoA3sTp9YVgxoboyKic3ZtAH \
-      --url https://api.devnet.solana.com \
-      --authority ~/.config/solana/hastra-devnet-id.json
-      
-Updating AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X
-  Current mint: Aq9ykXqr1qizcSe8KkLZa6BJN37dDq95MyG9ZXPYnDTT
-  New mint: 2DSeF8fQwj9F6DgF6MwmWoA3sTp9YVgxoboyKic3ZtAH
-      
-```
+| Vault Mint          | wYLDS   | The token the user deposits to receive the minted token (PRIME) | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program |
+| Mint Token          | PRIME   | The token that is minted when the user deposits the vault token (wYLDS) | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program  | Your Solana Wallet (e.g. hastra-devnet-id.json) initially, then Program Derived Address (PDA) of the program |
+| Vault Token Account | N/A     | The token account that will hold the vaulted tokens (e.g. wYLDS) when users deposit them in exchange for the minted token (e.g. PRIME). | Program Derived Address (PDA) of the program                                                          | N/A |
 
 ## Freeze and Thaw
 
-The program uses a list of accounts that define the freeze and thaw administrators. These accounts can freeze and thaw user token accounts for the Mint Token (e.g. sYLDS). This is useful in the event of a security issue or other situation where you need to prevent users from transferring their staking tokens.
+The program uses a list of accounts that define the freeze and thaw administrators. These accounts can freeze and thaw user token accounts for the Mint Token (e.g. PRIME). This is useful in the event of a security issue or other situation where you need to prevent users from transferring their staking tokens.
 
 > The Mint Token must be created with the `--enable-freeze` flag to allow freezing and thawing of accounts. The Mint Token must also have a freeze authority set to the PDA of the program. `config.sh` script has a helper function to set the mint and freeze authority to the PDA of the program that can be run after the program is deployed and initialized.
 
@@ -402,7 +466,7 @@ $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
 
 ### Freeze a User Account
 
-Put a freeze on an account's Mint Token (e.g. sYLDS) account. This prevents the user from transferring their staking tokens.
+Put a freeze on an account's Mint Token (e.g. PRIME) account. This prevents the user from transferring their staking tokens.
 
 ```bash
 $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
@@ -414,7 +478,7 @@ $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
 
 ### Thaw a User Account
 
-Put a freeze on an account's Mint Token (e.g. sYLDS) account. This prevents the user from transferring their staking tokens.
+Put a freeze on an account's Mint Token (e.g. PRIME) account. This prevents the user from transferring their staking tokens.
 
 ```bash
 $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \

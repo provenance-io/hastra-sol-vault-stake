@@ -2,15 +2,16 @@ import * as anchor from "@coral-xyz/anchor";
 import {Program} from "@coral-xyz/anchor";
 import {HastraSolVaultStake} from "../target/types/hastra_sol_vault_stake";
 import {PublicKey} from "@solana/web3.js";
-import {createHash} from "crypto";
-import {MerkleTree} from "merkletreejs";
 import yargs from "yargs";
 import {getAssociatedTokenAddressSync} from "@solana/spl-token";
+import {
+    allocationsToMerkleTree,
+    idl,
+    makeLeaf
+} from "./cryptolib";
 
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
-
-const program = anchor.workspace.HastraSolVaultStake as Program<HastraSolVaultStake>;
 
 const args = yargs(process.argv.slice(2))
     .option("epoch", {
@@ -25,7 +26,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("mint", {
         type: "string",
-        description: "Token that will be minted (e.g. sYLDS) upon validation of the claim proof",
+        description: "Token that will be minted (e.g. PRIME) upon validation of the claim proof",
         required: true,
     })
     .option("amount", {
@@ -35,39 +36,37 @@ const args = yargs(process.argv.slice(2))
     })
     .parseSync();
 
-// helper: sha256 hash
-const sha256 = (x: Buffer) => createHash("sha256").update(x).digest();
-
-// leaf = sha256(user || amount_le_u64 || epochIndex_le_u64)
-function makeLeaf(user: PublicKey, amount: anchor.BN | number, epoch: number): Buffer {
-    return sha256(Buffer.concat([
-        user.toBuffer(),
-        (anchor.BN.isBN(amount) ? amount : new anchor.BN(amount)).toArrayLike(Buffer, "le", 8),
-        new anchor.BN(epoch).toArrayLike(Buffer, "le", 8),
-    ]));
-}
+const program: Program<HastraSolVaultStake> = new anchor.Program(idl as anchor.Idl, provider) as Program<HastraSolVaultStake>;
 
 const main = async () => {
     const epochIndex = args.epoch;
-    const allocations: {user: PublicKey, amount: anchor.BN}[] = (JSON.parse(args.reward_allocations).allocations as {account: string, amount: number}[]).map((a: {account: string, amount: number}) => {
-        return {user: new PublicKey(a.account), amount: new anchor.BN(a.amount)};
-    });
-
-    console.log("Epoch:", epochIndex.toString());
-    console.log("Allocations:", allocations.map(a => ({user: a.user.toBase58(), amount: a.amount.toString()})));
-    console.log("User:", provider.wallet.publicKey.toBase58());
-
-    // Merkle tree setup
-    // build tree
-    const leaves = allocations.map(a => makeLeaf(a.user, a.amount, epochIndex));
-    const tree = new MerkleTree(leaves, sha256, { sortPairs: true });
+    const { tree } = allocationsToMerkleTree(args.reward_allocations, epochIndex);
 
     const leaf = makeLeaf(provider.wallet.publicKey, args.amount ?? 0, epochIndex);
-    const proof: number[][] = tree
-        .getProof(leaf)
-        .map(p => Array.from(p.data as Buffer));
 
-    const [configPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
+    console.log("Leaf:", leaf.toString("hex"));
+
+    const treeProof = tree.getProof(leaf);
+    console.log("Proof length:", treeProof.length);
+    console.log("Proof:", treeProof);
+    console.log("Proof (hex):", treeProof.map(p => p.data.toString("hex")));
+
+    const proof = treeProof.map(p => ({
+        sibling: Array.from(p.data),
+        isLeft: p.position === "left",
+    }));
+
+    console.log("Proof:", proof);
+    console.log("Root:", tree.getRoot().toString("hex"));
+    // Verify
+    const verified = tree.verify(treeProof, leaf, tree.getRoot());
+    console.log("Verified:", verified);
+
+    if (!verified) {
+        console.warn("\n!!Proof is not valid!!\n");
+    }
+
+    const [configPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("config")],
         program.programId
     );

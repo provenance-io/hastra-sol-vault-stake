@@ -1,5 +1,9 @@
 use anchor_lang::prelude::*;
 
+pub const MAX_UNBONDING_PERIOD: i64 = 31536000; // 365 days in seconds
+pub const MIN_UNBONDING_PERIOD: i64 = 1; // 1 second
+pub const MAX_ADMINISTRATORS: usize = 5; // max number of freeze/rewards administrators
+
 #[account]
 pub struct Config {
     pub vault: Pubkey,
@@ -8,10 +12,12 @@ pub struct Config {
     pub freeze_administrators: Vec<Pubkey>,
     pub rewards_administrators: Vec<Pubkey>,
     pub bump: u8,
+    pub paused: bool,
 }
 
 impl Config {
-    pub const LEN: usize = 8 + 32 + 32 + 8 + 4 + (32 * 5) +  (32 * 5) + 1; // max of 5 administrators
+    // The vectors have a max length of 5 each and must include the Borsh overhead of 4 bytes for
+    pub const LEN: usize = 8 + 32 + 32 + 8 + (4 + (32 * MAX_ADMINISTRATORS)) + (4 + (32 * MAX_ADMINISTRATORS)) + 1 + 1;
 }
 
 #[account]
@@ -33,8 +39,20 @@ pub struct RewardsEpoch {
     pub total: u64,            // optional: sum of all allocations
     pub created_ts: i64,
 }
-impl RewardsEpoch { pub const LEN: usize = 8 + 8 + 32 + 8 + 8; }
+impl RewardsEpoch {
+    pub const LEN: usize = 8 + 8 + 32 + 8 + 8;
+}
 
 #[account]
-pub struct ClaimRecord {}      // empty marker account, existence = already claimed
-impl ClaimRecord { pub const LEN: usize = 8; }
+pub struct ClaimRecord {} // empty marker account, existence = already claimed
+impl ClaimRecord {
+    pub const LEN: usize = 8;
+}
+
+/// One Merkle proof element.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct ProofNode {
+    pub sibling: [u8; 32],
+    pub is_left: bool,
+}
+

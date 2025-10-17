@@ -53,6 +53,16 @@ const main = async () => {
         [Buffer.from("config")],
         program.programId
     );
+    // bpf_loader_upgradeable program id
+    const BPF_LOADER_UPGRADEABLE_ID = new PublicKey(
+        "BPFLoaderUpgradeab1e11111111111111111111111"
+    );
+    // derive ProgramData PDA
+    const [programData] = PublicKey.findProgramAddressSync(
+        [program.programId.toBuffer()],
+        BPF_LOADER_UPGRADEABLE_ID
+    );
+
     const [vaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("vault_authority")],
         program.programId
@@ -89,6 +99,7 @@ const main = async () => {
     console.log("Freeze Authority PDA:", freezeAuthorityPda.toBase58());
     console.log("Freeze Administrators:", freezeAdministrators.map((a) => a.toBase58()));
     console.log("Rewards Administrators:", rewardsAdministrators.map((a) => a.toBase58()));
+    console.log("Program Data PDA:", programData.toBase58());
 
     // Call initialize
     await program.methods
@@ -98,6 +109,7 @@ const main = async () => {
             vaultTokenAccount: vaultTokenAccount,
             vaultMint: vault,
             mint: mint,
+            programData: programData,
         }).rpc()
         .then((tx) => {
             console.log("Transaction:", tx);

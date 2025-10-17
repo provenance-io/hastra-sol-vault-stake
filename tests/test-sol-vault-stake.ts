@@ -48,7 +48,7 @@ describe("hastra-sol-vault-stake", () => {
         6
     );
 
-    // Create stake mint (sYLDS)
+    // Create stake mint (PRIME)
     stakeMint = await createMint(
         provider.connection,
         user.payer,

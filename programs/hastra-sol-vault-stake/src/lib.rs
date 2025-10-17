@@ -4,7 +4,7 @@ pub mod account_structs;
 /// ## Business Process Flow
 ///
 /// 1. Initial Setup:
-///    - Admin creates two token types: Vault (wYLDS), Stake (sYLDS)
+///    - Admin creates two token types: Vault (wYLDS), Stake (PRIME)
 ///    - Admin initializes program with token addresses and unbonding period
 ///    - Admin configures vault token account to hold deposited tokens
 ///
@@ -12,11 +12,11 @@ pub mod account_structs;
 ///    a. Deposit Phase:
 ///       - User deposits vault tokens (wYLDS)
 ///       - System securely stores tokens in vault account
-///       - User receives equivalent stake tokens (sYLDS)
+///       - User receives equivalent stake tokens (PRIME)
 ///
 /// 3. Withdrawal Flow:
 ///    a. Unbonding Initiation:
-///       - User initiates withdrawal by burning stake tokens (sYLDS)
+///       - User initiates withdrawal by burning stake tokens (PRIME)
 ///       - System creates an unbonding ticket attached to the user
 ///       - Unbonding period timer starts
 ///    
@@ -38,14 +38,16 @@ pub mod account_structs;
 /// token authority controls. All token operations are atomic and validated
 /// through Solana's transaction model.
 pub mod error;
+pub mod events;
 mod guard;
 pub mod processor;
 pub mod state;
 
 use account_structs::*;
 use anchor_lang::prelude::*;
+use state::ProofNode;
 
-declare_id!("AixEL5nihPVirtmPki2m1bS2a2eVeMY22hxyihYWXrBL");
+declare_id!("dyXhxx6Y6LeMwZwb78oeTGWqwJkufPAMFEzH2QJ4mcp");
 
 #[program]
 pub mod hastra_sol_vault_stake {
@@ -53,7 +55,7 @@ pub mod hastra_sol_vault_stake {
 
     /// Initializes the vault program with the required token configurations:
     /// - vault_mint: The token that users deposit (e.g., wYLDS)
-    /// - stake_mint: The token users receive when staking (e.g., sYLDS)
+    /// - stake_mint: The token users receive when staking (e.g., PRIME)
     /// - unbonding_period: Time in seconds users must wait before redeeming
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -73,6 +75,12 @@ pub mod hastra_sol_vault_stake {
         )
     }
 
+    /// Pauses or unpauses the protocol operations:
+    /// - pause: true to pause, false to unpause
+    pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
+        processor::pause(ctx, pause)
+    }
+    
     /// Updates the program configuration with new token addresses:
     /// - new_unbonding_period: New unbonding period in seconds
     pub fn update_config(ctx: Context<UpdateConfig>, new_unbonding_period: i64) -> Result<()> {
@@ -81,13 +89,13 @@ pub mod hastra_sol_vault_stake {
 
     /// Handles user deposits of vault tokens (e.g., wYLDS):
     /// - Transfers vault tokens to program vault account
-    /// - Mints equivalent amount of stake tokens (e.g., sYLDS) to user
+    /// - Mints equivalent amount of stake tokens (e.g., PRIME) to user
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         processor::deposit(ctx, amount)
     }
 
     /// Initiates the unbonding process:
-    /// - Burns user's stake tokens (e.g., sYLDS)
+    /// - Burns user's stake tokens (e.g., PRIME)
     /// - Starts unbonding period timer via user ticket
     pub fn unbond(ctx: Context<Unbond>, amount: u64) -> Result<()> {
         processor::unbond(ctx, amount)
@@ -100,12 +108,6 @@ pub mod hastra_sol_vault_stake {
         processor::redeem(ctx)
     }
 
-    /// Sets the mint authority for a specified token type
-    /// Used to configure program control over token minting
-    pub fn set_mint_authority(ctx: Context<SetMintAuthority>, new_authority: Pubkey) -> Result<()> {
-        processor::set_mint_authority(ctx, new_authority)
-    }
-    
     pub fn update_freeze_administrators(
         ctx: Context<UpdateFreezeAdministrators>,
         new_administrators: Vec<Pubkey>,
@@ -147,10 +149,13 @@ pub mod hastra_sol_vault_stake {
     /// 	•	Store each epoch’s Merkle root in a PDA.
     /// 	•	When a user claims, they present (amount, proof) for their pubkey.
     /// 	•	The program verifies the Merkle proof against the root.
-    /// 	•	If valid, transfer reward tokens (sYLDS) from the rewards vault to the user's staking mint token account.
+    /// 	•	If valid, transfer reward tokens (PRIME) from the rewards vault to the user's staking mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
+    pub fn claim_rewards(
+        ctx: Context<ClaimRewards>,
+        amount: u64,
+        proof: Vec<ProofNode>,
+    ) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }
-    
