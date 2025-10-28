@@ -60,4 +60,7 @@ pub enum CustomErrorCode {
     ProtocolPaused = 27,
     #[msg("Invalid bonding period")]
     InvalidBondingPeriod = 28,
+    #[msg("Invalid token owner")]
+    InvalidTokenOwner = 29,
+    
 }
