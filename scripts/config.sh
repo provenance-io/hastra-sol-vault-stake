@@ -62,7 +62,7 @@ show_current_settings() {
 show_current_settings
 
 case "$SOLANA_NETWORK" in
-  devnet) SOLANA_URL="https://api.devnet.solana.com" ;;
+  devnet) SOLANA_URL="https://sleek-dimensional-liquid.solana-devnet.quiknode.pro/796573589f2c220cb42d2f37f0a5f72c6a74de29/" ;;
   mainnet-beta) SOLANA_URL="https://api.mainnet-beta.solana.com" ;;
   testnet) SOLANA_URL="https://api.testnet.solana.com" ;;
   *) echo "Invalid network"; exit 1 ;;

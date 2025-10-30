@@ -2,7 +2,7 @@ use crate::account_structs::*;
 use crate::error::*;
 use crate::events::*;
 use crate::guard::validate_program_update_authority;
-use crate::state::{ProofNode, MAX_UNBONDING_PERIOD, MIN_UNBONDING_PERIOD, MAX_ADMINISTRATORS};
+use crate::state::{ProofNode, MAX_ADMINISTRATORS, MAX_UNBONDING_PERIOD, MIN_UNBONDING_PERIOD};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::token::spl_token::instruction::AuthorityType;
@@ -128,12 +128,14 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         amount,
     )?;
 
+    msg!("Emitting DepositEvent");
     emit!(DepositEvent {
         user: ctx.accounts.signer.key(),
         amount,
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.vault_token_account.key(),
     });
+    msg!("Emitted DepositEvent");
 
     Ok(())
 }
@@ -154,12 +156,14 @@ pub fn unbond(ctx: Context<Unbond>, amount: u64) -> Result<()> {
     ticket.start_balance = current_mint_amount;
     ticket.start_ts = Clock::get()?.unix_timestamp;
 
+    msg!("Emitting UnbondEvent");
     emit!(UnbondEvent {
         user: ctx.accounts.signer.key(),
         amount,
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.config.vault,
     });
+    msg!("Emitted UnbondingEvent");
 
     Ok(())
 }
@@ -216,13 +220,15 @@ pub fn redeem(ctx: Context<Redeem>) -> Result<()> {
         redeem,
     )?;
 
+    msg!("Emitting RedeemEvent");
     emit!(RedeemEvent {
         user: ctx.accounts.signer.key(),
         amount: redeem,
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.vault_token_account.key(),
     });
-
+    msg!("Emitted RedeemEvent");
+    
     Ok(())
 }
 
@@ -348,11 +354,9 @@ pub fn thaw_token_account(ctx: Context<ThawTokenAccount>) -> Result<()> {
     Ok(())
 }
 
-pub fn create_rewards_epoch(
-    ctx: Context<CreateRewardsEpoch>,
-    index: u64,
-    merkle_root: [u8; 32],
-    total: u64,
+pub fn publish_rewards(
+    ctx: Context<PublishRewards>,
+    amount: u64,
 ) -> Result<()> {
     require!(
         ctx.accounts
@@ -361,82 +365,20 @@ pub fn create_rewards_epoch(
             .contains(&ctx.accounts.admin.key()),
         CustomErrorCode::InvalidRewardsAdministrator
     );
-    let e = &mut ctx.accounts.epoch;
-    e.index = index;
-    e.merkle_root = merkle_root;
-    e.total = total;
-    e.created_ts = Clock::get()?.unix_timestamp;
-    Ok(())
-}
-
-pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
-    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     require!(amount > 0, CustomErrorCode::InvalidAmount);
-    // leaf = sha256(user || amount_le || epoch_index_le)
-    let mut data = Vec::with_capacity(32 + 8 + 8);
-    data.extend_from_slice(ctx.accounts.user.key.as_ref());
-    data.extend_from_slice(&amount.to_le_bytes());
-    data.extend_from_slice(&ctx.accounts.epoch.index.to_le_bytes());
-    let mut node = hashv(&[&data]).to_bytes();
 
-    msg!("User Leaf node: {}", hex::encode(node));
-
-    // iterate through proof
-    for (i, step) in proof.iter().enumerate() {
-        let sib = &step.sibling;
-
-        if sib.iter().all(|&b| b == 0) {
-            msg!("[{}] right: sibling is zero - hashing just the node", i);
-            node = hashv(&[&node]).to_bytes();
-            continue;
-        }
-
-        if step.is_left {
-            // sibling is left, so hash(sib || node)
-            node = hashv(&[sib, &node]).to_bytes();
-            msg!("[{}] left: hash(sib,node) = {}", i, hex::encode(node));
-        } else {
-            // sibling is right, so hash(node || sib)
-            node = hashv(&[&node, sib]).to_bytes();
-            msg!("[{}] right: hash(node,sib) = {}", i, hex::encode(node));
-        }
-    }
-
-    msg!("Computed root: {}", hex::encode(node));
-    msg!(
-        "Expected root: {}",
-        hex::encode(ctx.accounts.epoch.merkle_root)
-    );
-
-    require!(
-        node == ctx.accounts.epoch.merkle_root,
-        CustomErrorCode::InvalidMerkleProof
-    );
-
-    // mint staking tokens (PRIME) to user
-    let seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
-    let signer = &[&seeds[..]];
-    let cpi_accounts = MintTo {
-        mint: ctx.accounts.mint.to_account_info(),
-        to: ctx.accounts.user_stake_token_account.to_account_info(),
-        authority: ctx.accounts.mint_authority.to_account_info(),
-    };
-    token::mint_to(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            cpi_accounts,
-            signer,
-        ),
-        amount,
-    )?;
-
-    emit!(RewardsClaimed {
-        user: ctx.accounts.user.key(),
-        epoch: ctx.accounts.epoch.index,
-        amount,
-        mint: ctx.accounts.mint.key(),
+    // at this point, use CPI to call the mint_to instruction on the hastra-sol-vault-mint 
+    
+    msg!("Emitting RewardsPublished");
+    emit!(RewardsPublished {
+        admin: ctx.accounts.admin.key(),
+        amount: amount,
+        mint_program: ctx.accounts.mint_program.key(),
+        vault_token_account: ctx.accounts.vault_token_account.key(),
+        mint: ctx.accounts.config.mint,
         vault: ctx.accounts.config.vault,
     });
+    msg!("Emitted RewardsPublished");
 
     Ok(())
 }

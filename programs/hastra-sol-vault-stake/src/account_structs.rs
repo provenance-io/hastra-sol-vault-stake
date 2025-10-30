@@ -347,6 +347,43 @@ pub struct ThawTokenAccount<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+// admin publishes rewards
+#[derive(Accounts)]
+pub struct PublishRewards<'info> {
+    #[account(
+        seeds = [b"config"], 
+        bump = config.bump
+    )]
+    pub config: Account<'info, Config>,
+
+    /// CHECK: This program's executable
+    #[account(executable)]
+    pub this_program: AccountInfo<'info>,
+
+    /// CHECK: hastra-sol-vault-mint program's executable
+    pub mint_program: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        token::mint = config.vault,
+        constraint = vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
+        constraint = vault_token_account.owner == vault_authority.key() @ CustomErrorCode::InvalidVaultAuthority
+    )]
+    pub vault_token_account: Account<'info, TokenAccount>,
+
+    /// CHECK: This is a PDA that acts as vault authority, validated by seeds constraint
+    #[account(
+        seeds = [b"vault_authority"],
+        bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // admin posts an epoch root
 #[derive(Accounts)]
 #[instruction(index: u64)]
