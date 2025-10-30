@@ -136,7 +136,7 @@ pub struct Deposit<'info> {
         mut,
         token::mint = config.vault,
         constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
-        constraint = user_vault_token_account.owner == signer.key()
+        constraint = user_vault_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
 
@@ -144,7 +144,7 @@ pub struct Deposit<'info> {
         mut,
         token::mint = config.mint,
         constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint,
-        constraint = user_mint_token_account.owner == signer.key()
+        constraint = user_mint_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner
     )]
     pub user_mint_token_account: Account<'info, TokenAccount>,
 
@@ -243,34 +243,6 @@ pub struct Redeem<'info> {
     )]
     pub mint: Account<'info, Mint>,
 
-    pub token_program: Program<'info, Token>,
-}
-
-#[derive(Accounts)]
-pub struct SetFreezeAuthority<'info> {
-    #[account(
-        mut,
-        constraint = mint.freeze_authority.is_some() @ CustomErrorCode::InvalidFreezeAuthority
-    )]
-    pub mint: Account<'info, Mint>,
-
-    /// CHECK: This is the program data account that contains the update authority
-    #[account(
-        constraint = program_data.key() == get_program_data_address(&crate::id()) @ CustomErrorCode::InvalidProgramData
-    )]
-    pub program_data: UncheckedAccount<'info>,
-
-    /// CHECK: Current freeze authority (could be a keypair or PDA)
-    pub current_freeze_authority: Signer<'info>,
-
-    /// CHECK: This is the PDA that will become the freeze authority
-    #[account(
-        seeds = [b"freeze_authority"],
-        bump
-    )]
-    pub freeze_authority_pda: UncheckedAccount<'info>,
-
-    pub signer: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
 
