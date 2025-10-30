@@ -44,7 +44,6 @@ if [ ! -f "$HISTORY_FILE" ]; then
   touch "$HISTORY_FILE"
 fi
 
-
 show_current_settings() {
   echo ""
   echo "Current settings in $HISTORY_FILE:"
@@ -56,19 +55,11 @@ show_current_settings() {
     printf "  %-30s %s\n" "$name:" "$value"
   done
   echo ""
-
 }
 
 show_current_settings
 
-case "$SOLANA_NETWORK" in
-  devnet) SOLANA_URL="https://sleek-dimensional-liquid.solana-devnet.quiknode.pro/796573589f2c220cb42d2f37f0a5f72c6a74de29/" ;;
-  mainnet-beta) SOLANA_URL="https://api.mainnet-beta.solana.com" ;;
-  testnet) SOLANA_URL="https://api.testnet.solana.com" ;;
-  *) echo "Invalid network"; exit 1 ;;
-esac
-
-# get the keypair from solana config
+# get the keypair and rpc url from solana config
 CONFIG_FILE="$HOME/.config/solana/cli/config.yml"
 if [ -f "$CONFIG_FILE" ]; then
   SOLANA_KEYPAIR=$(grep 'keypair_path:' "$CONFIG_FILE" | awk '{print $2}')
@@ -76,9 +67,18 @@ if [ -f "$CONFIG_FILE" ]; then
     KEYPAIR="$SOLANA_KEYPAIR"
     update_history_var "KEYPAIR"
   fi
+  JSON_RPC_URL=$(grep 'json_rpc_url:' "$CONFIG_FILE" | awk '{print $2}')
+  if [ -z "$SOLANA_URL" ]; then
+    SOLANA_URL="$JSON_RPC_URL"
+    update_history_var "SOLANA_URL"
+  fi
 fi
 
+echo "Solana Keypair from config: $KEYPAIR"
+echo "Solana RPC URL from config: $SOLANA_URL"
+
 prompt_with_default KEYPAIR "Enter path to Solana wallet keypair"
+prompt_with_default SOLANA_URL "Enter Solana RPC URL"
 
 if [ -z "$VAULT_MINT" ]; then
   prompt_with_default VAULT_MINT "Enter Vault Token Mint address (the token accepted for swap)"
